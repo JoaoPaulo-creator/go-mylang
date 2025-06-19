@@ -13,5 +13,10 @@ func main() {
 		os.Exit(-1)
 	}
 
-	mylang.Run(args[1])
+	data, err := os.ReadFile(args[1])
+	if err != nil {
+		panic(err.Error())
+	}
+
+	mylang.Run(string(data))
 }
