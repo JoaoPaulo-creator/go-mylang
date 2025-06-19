@@ -1,7 +1,11 @@
 package mylang
 
-import "fmt"
+import (
+	"fmt"
+	"my-lang/scanner"
+)
 
-func Run(file any) {
-	fmt.Println(file)
+func Run(file string) {
+	scnr := scanner.NewScanner(file)
+	fmt.Println(scnr.ScanToken())
 }
