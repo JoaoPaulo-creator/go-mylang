@@ -33,10 +33,6 @@ var keywords = map[string]token.TokenType{
 	"while":  token.WHILE,
 }
 
-func (s *Scanner) IsAtEnd() bool {
-	return s.current > len(s.source)
-}
-
 func NewScanner(source string) *Scanner {
 	return &Scanner{
 		source:  source,
@@ -47,12 +43,15 @@ func NewScanner(source string) *Scanner {
 	}
 }
 
+func (s *Scanner) IsAtEnd() bool {
+	return s.current >= len(s.source)
+}
+
 func (s *Scanner) ScanToken() []token.Token {
 	for !s.IsAtEnd() {
 		s.start = s.current
 		s.scanToken()
 	}
-
 	s.tokens = append(s.tokens, token.Token{
 		Type:    token.EOF,
 		Lexeme:  "",
@@ -75,26 +74,32 @@ func (s *Scanner) isAlphaNumeric(c rune) bool {
 }
 
 func (s *Scanner) match(expected rune) bool {
-	if s.IsAtEnd() || s.source[s.current] != byte(expected) {
+	if s.IsAtEnd() || rune(s.source[s.current]) != expected {
 		return false
 	}
-
 	s.current++
 	return true
 }
 
 func (s *Scanner) advance() rune {
+	if s.IsAtEnd() {
+		return 0
+	}
 	r := rune(s.source[s.current])
 	s.current++
 	return r
 }
 
-func (s *Scanner) addTokenSimple(token token.TokenType) {
-	s.addToken(token, nil)
+func (s *Scanner) addTokenSimple(tokenType token.TokenType) {
+	s.addToken(tokenType, nil)
 }
 
 func (s *Scanner) addToken(tokenType token.TokenType, literal any) {
-	text := s.source[s.start : s.current-s.start]
+	if s.start > s.current {
+		log.Printf("Invalid token range: start=%d, current=%d", s.start, s.current)
+		return
+	}
+	text := s.source[s.start:s.current]
 	s.tokens = append(s.tokens, token.Token{
 		Type:    tokenType,
 		Lexeme:  text,
@@ -105,17 +110,15 @@ func (s *Scanner) addToken(tokenType token.TokenType, literal any) {
 
 func (s *Scanner) peek() rune {
 	if s.IsAtEnd() {
-		return '0'
+		return 0
 	}
-
 	return rune(s.source[s.current])
 }
 
 func (s *Scanner) peekNext() rune {
-	if s.current+1 > len(s.source) {
-		return '0'
+	if s.current+1 >= len(s.source) {
+		return 0
 	}
-
 	return rune(s.source[s.current+1])
 }
 
@@ -126,16 +129,12 @@ func (s *Scanner) string() {
 		}
 		s.advance()
 	}
-
 	if s.IsAtEnd() {
-		log.Printf("unterminated string %d", s.line)
+		log.Printf("Line %d: Unterminated string", s.line)
 		return
 	}
-
-	s.advance()
-
-	// substring
-	value := s.source[s.start+1 : s.current-s.start-2]
+	s.advance() // Consume closing quote
+	value := s.source[s.start+1 : s.current-1]
 	s.addToken(token.STRING, value)
 }
 
@@ -143,15 +142,13 @@ func (s *Scanner) number() {
 	for s.isDigit(s.peek()) {
 		s.advance()
 	}
-
 	if s.peek() == '.' && s.isDigit(s.peekNext()) {
 		s.advance()
 		for s.isDigit(s.peek()) {
 			s.advance()
 		}
 	}
-
-	text := s.source[s.start : s.current-s.start]
+	text := s.source[s.start:s.current]
 	number, _ := strconv.ParseFloat(text, 64)
 	s.addToken(token.NUMBER, number)
 }
@@ -160,21 +157,12 @@ func (s *Scanner) identifier() {
 	for s.isAlphaNumeric(s.peek()) {
 		s.advance()
 	}
-
 	text := s.source[s.start:s.current]
 	tokenType := token.TokenType("IDENTIFIER")
-
 	if tt, ok := keywords[text]; ok {
 		tokenType = tt
 	}
-
 	s.addToken(tokenType, nil)
-}
-
-func (s *Scanner) skipWhitespace() {
-	for s.current == ' ' || s.current == '\t' || s.current == '\n' || s.current == '\r' {
-		s.advance()
-	}
 }
 
 func (s *Scanner) scanToken() {
@@ -248,7 +236,6 @@ func (s *Scanner) scanToken() {
 		} else if s.isAlpha(c) {
 			s.identifier()
 		} else {
-			// Assuming Debug is a logging mechanism; replace with your error handling
 			log.Printf("Line %d: Unexpected character %c", s.line, c)
 		}
 	}
